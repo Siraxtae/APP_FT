@@ -1,0 +1,151 @@
+Imports System.Net.Sockets
+Imports System.Threading
+Imports System.IO
+Imports System
+Imports System.Net.Dns
+Imports UNOLibs.Net.ClientClass
+Imports System.Net
+Imports System.Text
+
+Public Class Form1
+
+    Dim cont As Integer
+    Dim v(10) As String
+    Dim Listener As New TcpListener(65535)
+    Dim Listener1 As New TcpListener(65534)
+
+    'Librería para la transferencia de archivos
+    Dim clnt As New UNOLibs.Net.ClientClass
+    Dim WithEvents server As UNOLibs.Net.ServerClass
+    Dim WithEvents server2 As UNOLibs.Net.ServerClass
+
+
+
+    Private Sub Form1_Load(sender As System.Object, e As System.EventArgs) Handles MyBase.Load
+
+        CheckForIllegalCrossThreadCalls = False 'Desactiva el error por subproceso
+
+        Txt_path.Text = My.Computer.FileSystem.SpecialDirectories.MyDocuments & "\"  'Mostramos la ruta de guardado
+
+        server = New UNOLibs.Net.ServerClass(65533, True, Txt_path.Text)      'Abrimos el puerto 65533 teniendo en cuenta la ruta de guardado local
+
+        server2 = New UNOLibs.Net.ServerClass(65532, True, "C:\")    'Abrimos el puerto 65532 pero éste posicionará el archivo a guardar desde la raíz
+        ' ("Se centra en el equipo remoto")
+
+        Dim ListThread As New Thread(New ThreadStart(AddressOf Listening))  'Crea los thread o hilos de ejecución
+        ListThread.Start() 'Inicia los threads
+        Dim shostname As String
+
+        shostname = System.Net.Dns.GetHostName
+
+        Console.WriteLine("El nombre de tu máquina es: " & shostname)
+
+    End Sub
+    Private Sub Listening() 'Procedimiento para iniciar la escucha
+
+        Listener.Start()
+        Listener1.Start()
+
+    End Sub
+
+    Private Sub Btn_connect_Click(sender As System.Object, e As System.EventArgs) Handles Btn_connect.Click 'Procedimiento del botón "conectar"
+
+        Try
+
+            Btn_connect.Text = "Conectando..."
+
+            Dim pingresult As String = My.Computer.Network.Ping(Me.Txt_ip.Text) 'Realizamos ping para saber si la máquina está en red
+
+            If pingresult = "True" Then
+                Btn_connect.Text = "Conectado"
+            Else
+                Btn_connect.Text = "Desconectado"
+            End If
+
+        Catch ex As Exception
+
+        End Try
+    End Sub
+
+    Private Sub Btn_send_Click(sender As System.Object, e As System.EventArgs) Handles Btn_send.Click 'Procedimiento para enviar archivos
+
+        OpenFileDialog1.ShowDialog()
+
+        If DialogResult.OK Then
+
+            Try
+
+                RichTextBox1.Text += (Me.Txt_user.Text & " está enviando el archivo...") + vbCrLf
+                clnt.SendFiles(Me.Txt_ip.Text, 65533, OpenFileDialog1.FileNames) 'Enviar archivos
+
+                With ProgressBar1 'Se utiliza una barra de proceso para visualizar la transferencia
+
+                    .Minimum = 1
+
+                    .Maximum = 10000
+
+                    .Value = 1
+
+                    .Step = 1
+
+                    For i As Integer = .Minimum To .Maximum
+
+                        .PerformStep()
+
+                    Next i
+
+                End With
+
+                MsgBox("¡El archivo se ha enviado con éxito!", MsgBoxStyle.Information, "Notificación")
+
+                Me.ProgressBar1.Value = 1
+
+            Catch ex As Exception
+
+            End Try
+
+        Else
+
+            Exit Sub
+
+        End If
+    End Sub
+
+    Private Sub OnDiagnosticMessage(ByVal Args As String) Handles server.DiagnosticMessage 'Procedimiento para la recepción del archivo
+
+
+        Try
+
+            RichTextBox1.Text += (Txt_user.Text & " - " & Args) + vbCrLf
+            v = Split(Args, " ")
+            cont = cont + 1
+            Me.Label5.Text = cont
+
+            With ProgressBar2
+                .Minimum = 1
+                .Maximum = 1000
+                .Value = 1
+                .Step = 1
+
+                For i As Integer = .Minimum To .Maximum
+
+                    .PerformStep()
+                Next i
+            End With
+
+            Try
+                If (v(3) = "terminated") Then
+                    MsgBox("¡El archivo ha sido recibido con éxito!", MsgBoxStyle.Information, "Notificación")
+                    cont = 0
+                    Me.Label5.Text = 0
+                    Me.ProgressBar2.Value = 1
+                    RichTextBox1.Text += (" ") + vbCrLf
+                End If
+            Catch ex As Exception
+            End Try
+
+        Catch ex As Exception
+
+        End Try
+    End Sub
+End Class
